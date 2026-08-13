@@ -225,7 +225,7 @@ async fn install(
                     | ClientEvent::MessageReceived { .. }
             );
 
-            let _ = sink.emit("veil", &event);
+            let _ = sink.emit("securechat365", &event);
 
             if ratchet_moved {
                 let passphrase = save_passphrase.lock().await.clone();

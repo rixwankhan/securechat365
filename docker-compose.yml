@@ -16,7 +16,7 @@ services:
     environment:
       # Loopback only. On the host network, 0.0.0.0 would expose the relay
       # directly on port 8080, bypassing TLS entirely.
-      VEIL_BIND: "127.0.0.1:8080"
+      SECURECHAT_BIND: "127.0.0.1:8080"
       # Keep this at info in production. Debug logs every message's routing
       # metadata — who talked to whom and when — which is exactly the data
       # you told users you don't retain.

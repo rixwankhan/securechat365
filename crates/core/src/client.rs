@@ -219,7 +219,18 @@ impl RelayClient {
         }
 
         let _ = self.events.send(ClientEvent::Connected);
-        send(&mut sink, &ClientMessage::KeyCount).await?;
+
+        // Publish a fresh bundle on every connection, not only when one-time
+        // keys run low. A "top up when low" rule means an upgraded client keeps
+        // serving the bundle format it published before the upgrade — peers
+        // then reject it, and no amount of reconnecting fixes it.
+        {
+            let bundle = {
+                let mut identity = self.identity.lock().await;
+                identity.generate_key_bundle(OTK_TARGET)
+            };
+            send(&mut sink, &ClientMessage::PublishKeys { bundle }).await?;
+        }
 
         // Flush anything queued while offline, before handling new work.
         self.flush_outbox(&mut sink).await?;

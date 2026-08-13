@@ -15,7 +15,7 @@ use securechat365_core::client::{ClientEvent, Command, Outbox, RelayClient};
 use securechat365_core::crypto::{Identity, Vault};
 use securechat365_core::identity::ContactId;
 
-/// Set at build time: `VEIL_RELAY_URL=wss://relay.example.com/ws npm run tauri build`
+/// Set at build time: `RELAY_URL=wss://relay.example.com/ws npm run tauri build`
 ///
 /// Baked in rather than read at runtime on purpose. A messenger that lets an
 /// env var or config file redirect it to another relay is one social-engineering
@@ -67,7 +67,7 @@ fn data_dir(app: &AppHandle) -> Result<std::path::PathBuf> {
     // identities. Debug builds only — a release build that lets an env var
     // relocate the vault is an attack surface, not a feature.
     #[cfg(debug_assertions)]
-    if let Ok(override_path) = std::env::var("VEIL_DATA_DIR") {
+    if let Ok(override_path) = std::env::var("SECURECHAT_DATA_DIR") {
         let dir = std::path::PathBuf::from(override_path);
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         return Ok(dir);

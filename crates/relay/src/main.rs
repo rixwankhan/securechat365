@@ -528,9 +528,9 @@ async fn main() -> anyhow::Result<()> {
         .with_state(store);
 
     // Bind address. Defaults to all interfaces for local development; set
-    // VEIL_BIND=127.0.0.1:8080 in production so only the reverse proxy on the
+    // SECURECHAT_BIND=127.0.0.1:8080 in production so only the reverse proxy on the
     // same host can reach the relay directly.
-    let addr: SocketAddr = std::env::var("VEIL_BIND")
+    let addr: SocketAddr = std::env::var("SECURECHAT_BIND")
         .unwrap_or_else(|_| "0.0.0.0:8080".to_string())
         .parse()?;
     tracing::info!("relay listening on {addr}");

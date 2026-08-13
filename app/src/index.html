@@ -24,7 +24,12 @@
   * { box-sizing: border-box; }
 
   html, body {
-    margin: 0; height: 100%;
+    margin: 0;
+    /* dvh, not vh: on iOS the visual viewport is shorter than 100vh, so the
+       page overflows and scrolls sideways. */
+    height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
     background: var(--paper); color: var(--ink);
     font-family: var(--ui); font-size: 15px; line-height: 1.5;
     -webkit-font-smoothing: antialiased;
@@ -68,7 +73,10 @@
   .screen { display: none; height: 100%; }
   .screen.on { display: flex; }
 
-  #lock { align-items: center; justify-content: center; padding: var(--pad); }
+  #lock {
+    align-items: center; justify-content: center; padding: var(--pad);
+    padding-top: max(var(--pad), env(safe-area-inset-top));
+  }
   .gate { width: 100%; max-width: 380px; }
   .gate h1 {
     font-family: var(--mono); font-size: 13px; letter-spacing: 0.3em;
@@ -91,10 +99,29 @@
     display: flex; flex-direction: column;
   }
   .aside-head {
-    padding: var(--pad); border-bottom: 1px solid var(--rule);
+    padding: var(--pad);
+    padding-top: max(var(--pad), calc(env(safe-area-inset-top) + 8px));
+    border-bottom: 1px solid var(--rule);
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
   }
   .aside-head .strip { cursor: pointer; }
+
+  /* Connection state, always visible. Repeated rounds of "messages won't
+     send" turned out to be the client not being connected at all — that must
+     never again be something you read server logs to discover. */
+  .conn {
+    display: flex; align-items: center; gap: 7px;
+    padding: 7px var(--pad); font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    border-bottom: 1px solid var(--rule);
+  }
+  .conn .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .conn.online  { color: var(--verified); }
+  .conn.online .dot { background: var(--verified); }
+  .conn.offline { color: var(--caution); background: #FBF7EC; }
+  .conn.offline .dot { background: var(--caution); }
+  .conn.connecting { color: var(--dim); }
+  .conn.connecting .dot { background: var(--dim); }
 
   .contacts { flex: 1; overflow-y: auto; }
   .contact {
@@ -126,7 +153,9 @@
 
   main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
   .conv-head {
-    padding: 14px var(--pad); border-bottom: 1px solid var(--rule);
+    padding: 14px var(--pad);
+    padding-top: max(14px, calc(env(safe-area-inset-top) + 8px));
+    border-bottom: 1px solid var(--rule);
     background: var(--card); display: flex; align-items: center;
     justify-content: space-between; gap: 12px;
   }
@@ -239,6 +268,10 @@
       </div>
       <div class="strip sm" id="me-strip" role="button" tabindex="0"
            title="Show your ID and QR code"></div>
+    </div>
+
+    <div class="conn connecting" id="conn">
+      <span class="dot"></span><span id="conn-text">Connecting</span>
     </div>
 
     <div class="requests" id="requests" hidden></div>
@@ -358,6 +391,12 @@ function strip(el, hexId) {
     cell.style.opacity = 0.45 + (byte % 6) * 0.11;
     el.appendChild(cell);
   }
+}
+
+function setConnection(state, text) {
+  const el = $('conn');
+  el.className = 'conn ' + state;
+  $('conn-text').textContent = text;
 }
 
 function toast(text, alarm = false) {
@@ -745,10 +784,14 @@ listen('securechat365', ({ payload }) => {
     case 'session_established':
       toast('Ready to message.');
       break;
+    case 'connecting':
+      setConnection('connecting', 'Connecting');
+      break;
     case 'disconnected':
-      $('conv-state').textContent = `OFFLINE — RETRYING IN ${payload.retry_in_secs}S`;
+      setConnection('offline', `Offline — retrying in ${payload.retry_in_secs}s`);
       break;
     case 'connected':
+      setConnection('online', 'Connected');
       if (state.active) openConversation(state.active);
       break;
     case 'error':

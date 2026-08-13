@@ -351,11 +351,6 @@ An honest list. Roughly in the order they should be fixed.
 
 ### Blocking any real use
 
-- [ ] **Safety numbers are a placeholder.** `get_safety_number` hashes your own
-      fingerprint twice, so two people comparing digits always match — for the
-      wrong reason. It needs the peer's Ed25519 key, which arrives in their
-      bundle; store it on `Contact` when the bundle lands. Until then the Verify
-      button is theatre, which is worse than having no button.
 - [ ] **The relay stores queued messages in memory.** Any restart drops
       undelivered mail. Needs Postgres.
 - [ ] **No vault migration path.** The format has already changed once, and

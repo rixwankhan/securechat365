@@ -45,7 +45,7 @@ jobs:
 
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: "./app/src-tauri -> target"
+          workspaces: ". -> target"
 
       - uses: actions/setup-node@v4
         with:
@@ -78,14 +78,22 @@ jobs:
           projectPath: app
           args: ${{ matrix.args }}
 
+      # Where the bundles actually land, for future reference: app/src-tauri is
+      # a member of the workspace at the repo root, and Cargo workspaces share
+      # ONE target directory at that root. So it's ./target, never
+      # ./app/src-tauri/target. The ** covers per-target subdirectories that
+      # appear when --target is passed.
+      - name: Show what was built
+        shell: bash
+        run: find target -path '*release/bundle*' -maxdepth 6 -type f | head -40 || true
+
       - uses: actions/upload-artifact@v4
         with:
           name: veil-${{ matrix.name }}
           path: |
-            app/src-tauri/target/**/release/bundle/**/*.dmg
-            app/src-tauri/target/**/release/bundle/**/*.app
-            app/src-tauri/target/release/bundle/**/*.msi
-            app/src-tauri/target/release/bundle/**/*.exe
-            app/src-tauri/target/release/bundle/**/*.AppImage
-            app/src-tauri/target/release/bundle/**/*.deb
-          if-no-files-found: warn
+            target/**/release/bundle/**/*.dmg
+            target/**/release/bundle/**/*.msi
+            target/**/release/bundle/**/*.exe
+            target/**/release/bundle/**/*.AppImage
+            target/**/release/bundle/**/*.deb
+          if-no-files-found: error

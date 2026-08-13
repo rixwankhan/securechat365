@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 use vodozemac::olm::{
     Account, AccountPickle, InboundCreationResult, OlmMessage, Session, SessionConfig, SessionPickle,
 };
-use vodozemac::{Curve25519PublicKey, Ed25519PublicKey};
+use vodozemac::{Curve25519PublicKey, Ed25519PublicKey, Ed25519Signature};
 use zeroize::Zeroize;
 
 use crate::identity::ContactId;
@@ -49,6 +49,8 @@ const ARGON_LANES: u32 = 1;
 pub enum CryptoError {
     #[error("no session established with this contact")]
     NoSession,
+    #[error("no verified fingerprint for this contact yet")]
+    NoFingerprint,
     #[error("peer's key bundle is malformed: {0}")]
     BadBundle(String),
     #[error("could not establish session: {0}")]
@@ -77,6 +79,16 @@ pub struct KeyBundle {
     pub identity_key: String,
     /// Base64 Ed25519, used for the safety number.
     pub fingerprint_key: String,
+    /// Ed25519 signature over `identity_key`, made with `fingerprint_key`.
+    ///
+    /// The two keys are otherwise independent, so without this a relay could
+    /// pair someone's real Curve25519 key with a fingerprint key of its own
+    /// choosing — and safety numbers would then compare the wrong thing. This
+    /// proves whoever published the bundle holds both private keys.
+    ///
+    /// Not optional. A missing signature must be a hard failure, never a
+    /// silent downgrade to "skip the check".
+    pub signature: String,
     /// Unused one-time keys, by key id.
     pub one_time_keys: HashMap<String, String>,
     /// Reused key of last resort when the one-time keys are exhausted.
@@ -155,6 +167,10 @@ pub struct Identity {
     /// one means a later session silently destroys an earlier working one, and
     /// every message on the old session becomes undecryptable.
     sessions: HashMap<String, Vec<Session>>,
+    /// Peer Curve25519 identity key -> their verified Ed25519 fingerprint key,
+    /// both base64. Recorded when their bundle is accepted; needed to compute
+    /// a safety number later.
+    peer_fingerprints: HashMap<String, String>,
     nospam: [u8; 2],
 }
 
@@ -163,7 +179,12 @@ impl Identity {
     pub fn create() -> Self {
         let account = Account::new();
         let id = ContactId::new(account.curve25519_key().to_bytes());
-        Self { account, sessions: HashMap::new(), nospam: *id.nospam() }
+        Self {
+            account,
+            sessions: HashMap::new(),
+            peer_fingerprints: HashMap::new(),
+            nospam: *id.nospam(),
+        }
     }
 
     /// The 72-char ID. Its first 64 characters are literally this account's
@@ -206,8 +227,10 @@ impl Identity {
             .map(|(id, key)| (id.to_base64(), key.to_base64()))
             .collect();
 
+        let identity_key = self.account.curve25519_key().to_base64();
         let bundle = KeyBundle {
-            identity_key: self.account.curve25519_key().to_base64(),
+            signature: self.account.sign(&identity_key).to_base64(),
+            identity_key,
             fingerprint_key: self.account.ed25519_key().to_base64(),
             one_time_keys,
             fallback_key: self
@@ -243,6 +266,24 @@ impl Identity {
                 "bundle identity key does not match the contact ID — refusing".into(),
             ));
         }
+
+        // Bind the fingerprint key to the identity key. Without this the relay
+        // chooses which Ed25519 key you compare safety numbers against, which
+        // would make the whole verification step meaningless.
+        let fingerprint = Ed25519PublicKey::from_base64(&bundle.fingerprint_key)
+            .map_err(|e| CryptoError::BadBundle(format!("bad fingerprint key: {e}")))?;
+        let signature = Ed25519Signature::from_base64(&bundle.signature)
+            .map_err(|e| CryptoError::BadBundle(format!("bad signature: {e}")))?;
+        fingerprint
+            .verify(bundle.identity_key.as_bytes(), &signature)
+            .map_err(|_| {
+                CryptoError::BadBundle(
+                    "fingerprint key is not signed by this identity — refusing".into(),
+                )
+            })?;
+
+        self.peer_fingerprints
+            .insert(bundle.identity_key.clone(), bundle.fingerprint_key.clone());
 
         let otk_b64 = bundle
             .one_time_keys
@@ -347,6 +388,21 @@ impl Identity {
         Ok(Incoming { text, sender_id, new_session: true })
     }
 
+    /// The 60 digits to compare with `peer`. Both sides see the same value.
+    ///
+    /// Fails if we've never accepted a signed bundle from them — better an
+    /// explicit error than digits that mean nothing.
+    pub fn safety_number_with(&self, peer: &ContactId) -> Result<String, CryptoError> {
+        let peer_key = Curve25519PublicKey::from_bytes(*peer.public_key()).to_base64();
+        let their_fingerprint = self
+            .peer_fingerprints
+            .get(&peer_key)
+            .ok_or(CryptoError::NoFingerprint)?;
+        let theirs = Ed25519PublicKey::from_base64(their_fingerprint)
+            .map_err(|e| CryptoError::BadBundle(e.to_string()))?;
+        Ok(safety_number(&self.account.ed25519_key(), &theirs))
+    }
+
     pub fn has_session_with(&self, id: &ContactId) -> bool {
         let key = Curve25519PublicKey::from_bytes(*id.public_key()).to_base64();
         self.sessions.get(&key).is_some_and(|v| !v.is_empty())
@@ -374,7 +430,14 @@ impl Identity {
             .collect();
 
         key.zeroize();
-        Ok(Vault { version: 2, salt, account, sessions, nospam: self.nospam })
+        Ok(Vault {
+            version: 2,
+            salt,
+            account,
+            sessions,
+            peer_fingerprints: self.peer_fingerprints.clone(),
+            nospam: self.nospam,
+        })
     }
 
     pub fn unlock(vault: &Vault, passphrase: &str) -> Result<Self, CryptoError> {
@@ -396,7 +459,12 @@ impl Identity {
         }
 
         key.zeroize();
-        Ok(Self { account, sessions, nospam: vault.nospam })
+        Ok(Self {
+            account,
+            sessions,
+            peer_fingerprints: vault.peer_fingerprints.clone(),
+            nospam: vault.nospam,
+        })
     }
 }
 
@@ -431,6 +499,10 @@ pub struct Vault {
     pub account: String,
     /// Peer identity key -> encrypted session pickles, preferred first.
     pub sessions: HashMap<String, Vec<String>>,
+    /// Public keys only, so these need no encryption. `default` keeps vaults
+    /// written before this field existed loadable.
+    #[serde(default)]
+    pub peer_fingerprints: HashMap<String, String>,
     pub nospam: [u8; 2],
 }
 
@@ -469,7 +541,7 @@ pub fn safety_number(ours: &Ed25519PublicKey, theirs: &Ed25519PublicKey) -> Stri
     // Iterated hashing raises the cost of grinding a key whose safety number
     // collides in the digits a human actually bothers to check.
     let mut digest = Sha256::new()
-        .chain_update(b"securechat365-safety-number-v1")
+        .chain_update(b"veil-safety-number-v1")
         .chain_update(a)
         .chain_update(b)
         .finalize();
@@ -683,16 +755,75 @@ mod tests {
     }
 
     #[test]
-    fn safety_number_is_symmetric_and_key_bound() {
+    fn both_sides_compute_the_same_safety_number() {
+        let (mut alice, mut bob) = pair();
+
+        // Each must have accepted the other's bundle to have a fingerprint.
+        let bob_bundle = bob.generate_key_bundle(5);
+        let alice_bundle = alice.generate_key_bundle(5);
+        alice.begin_session(&bob.contact_id(), &bob_bundle).unwrap();
+        bob.begin_session(&alice.contact_id(), &alice_bundle).unwrap();
+
+        let on_alices_screen = alice.safety_number_with(&bob.contact_id()).unwrap();
+        let on_bobs_screen = bob.safety_number_with(&alice.contact_id()).unwrap();
+
+        assert_eq!(
+            on_alices_screen, on_bobs_screen,
+            "the whole point is that two people reading these aloud agree"
+        );
+        assert_eq!(on_alices_screen.replace(' ', "").len(), 60);
+    }
+
+    #[test]
+    fn a_different_contact_gives_different_digits() {
+        let (mut alice, mut bob) = pair();
+        let mut mallory = Identity::create();
+
+        alice.begin_session(&bob.contact_id(), &bob.generate_key_bundle(5)).unwrap();
+        alice
+            .begin_session(&mallory.contact_id(), &mallory.generate_key_bundle(5))
+            .unwrap();
+
+        assert_ne!(
+            alice.safety_number_with(&bob.contact_id()).unwrap(),
+            alice.safety_number_with(&mallory.contact_id()).unwrap()
+        );
+    }
+
+    #[test]
+    fn no_digits_before_a_bundle_is_accepted() {
         let (alice, bob) = pair();
+        assert!(matches!(
+            alice.safety_number_with(&bob.contact_id()),
+            Err(CryptoError::NoFingerprint)
+        ));
+    }
+
+    #[test]
+    fn a_swapped_fingerprint_key_is_rejected() {
+        let (mut alice, mut bob) = pair();
         let mallory = Identity::create();
 
-        let from_alice = safety_number(&alice.fingerprint_key(), &bob.fingerprint_key());
-        let from_bob = safety_number(&bob.fingerprint_key(), &alice.fingerprint_key());
-        assert_eq!(from_alice, from_bob);
+        // The relay keeps Bob's real identity key — which matches the ID Alice
+        // scanned — but swaps in Mallory's fingerprint key, so Alice would
+        // compare safety numbers against the wrong person.
+        let mut tampered = bob.generate_key_bundle(5);
+        tampered.fingerprint_key = mallory.fingerprint_key().to_base64();
 
-        let impostor = safety_number(&alice.fingerprint_key(), &mallory.fingerprint_key());
-        assert_ne!(from_alice, impostor);
-        assert_eq!(from_alice.replace(' ', "").len(), 60);
+        let err = alice.begin_session(&bob.contact_id(), &tampered).unwrap_err();
+        assert!(matches!(err, CryptoError::BadBundle(_)));
+        assert!(!alice.has_session_with(&bob.contact_id()));
+    }
+
+    #[test]
+    fn fingerprints_survive_lock_unlock() {
+        let (mut alice, mut bob) = pair();
+        alice.begin_session(&bob.contact_id(), &bob.generate_key_bundle(5)).unwrap();
+        let expected = alice.safety_number_with(&bob.contact_id()).unwrap();
+
+        let vault = alice.lock("passphrase").unwrap();
+        let restored = Identity::unlock(&vault, "passphrase").unwrap();
+
+        assert_eq!(restored.safety_number_with(&bob.contact_id()).unwrap(), expected);
     }
 }

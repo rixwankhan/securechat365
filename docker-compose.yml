@@ -20,7 +20,7 @@ services:
       # Keep this at info in production. Debug logs every message's routing
       # metadata — who talked to whom and when — which is exactly the data
       # you told users you don't retain.
-      RUST_LOG: veil_relay=info
+      RUST_LOG: securechat365_relay=info
 
   caddy:
     image: docker.io/library/caddy:2-alpine

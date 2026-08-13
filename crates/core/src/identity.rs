@@ -24,7 +24,7 @@ pub const ID_CHARS: usize = ID_BYTES * 2; // 72
 
 /// URI scheme embedded in the QR code. Register this in tauri.conf.json
 /// (deep links) so scanning a code opens the app straight to "add contact".
-pub const URI_SCHEME: &str = "veil";
+pub const URI_SCHEME: &str = "securechat365";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ContactId {

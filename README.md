@@ -225,7 +225,7 @@ You need [Rust](https://rustup.rs) and Node 20+.
 
 ```bash
 git clone <repo-url> && cd securechat365
-cargo test -p veil-core
+cargo test -p securechat365-core
 ```
 
 That runs the full core test suite — identity, ratchet, vault, and regression
@@ -236,7 +236,7 @@ Then, in two terminals:
 
 ```bash
 # 1 — relay
-cargo run -p veil-relay
+cargo run -p securechat365-relay
 
 # 2 — app
 cd app && npm install && npm run tauri dev
@@ -245,11 +245,11 @@ cd app && npm install && npm run tauri dev
 ### Testing with two identities
 
 You need two instances with separate storage. In debug builds only,
-`VEIL_DATA_DIR` overrides the data directory:
+`SECURECHAT_DATA_DIR` overrides the data directory:
 
 ```bash
-cd app && VEIL_DATA_DIR=/tmp/chat-a npm run tauri dev
-cd app && VEIL_DATA_DIR=/tmp/chat-b npm run tauri dev
+cd app && SECURECHAT_DATA_DIR=/tmp/chat-a npm run tauri dev
+cd app && SECURECHAT_DATA_DIR=/tmp/chat-b npm run tauri dev
 ```
 
 Create an identity in each, copy one ID into the other's **Add contact**, and
@@ -276,7 +276,7 @@ and the relay binds `127.0.0.1:8080`, so only the reverse proxy can reach it.
 Point clients at it by baking the URL in at compile time:
 
 ```bash
-VEIL_RELAY_URL=wss://your-domain/ws npm run tauri build
+RELAY_URL=wss://your-domain/ws npm run tauri build
 ```
 
 Compile-time, not runtime, and deliberately so — an app that a config file can
@@ -301,7 +301,7 @@ server": you shouldn't have to.
 | Android | `npm run tauri android dev` | Android Studio, SDK and NDK |
 
 CI builds all three desktop platforms on tag push or manual dispatch. Set
-`VEIL_RELAY_URL` as a repository **variable** first, or you'll ship binaries
+`RELAY_URL` as a repository **variable** first, or you'll ship binaries
 pointing at localhost.
 
 ### Two things that will bite you
@@ -394,7 +394,7 @@ to make a refactor pass.
 
 ### Pull requests
 
-Small and focused. `cargo test -p veil-core` must pass. Say what you tested by
+Small and focused. `cargo test -p securechat365-core` must pass. Say what you tested by
 hand — most of the interesting bugs here only appear with two live clients.
 
 ---

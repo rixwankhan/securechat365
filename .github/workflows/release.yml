@@ -62,7 +62,7 @@ jobs:
           # Baked into the binary at compile time. Set this as a repository
           # variable so a fork or a mistyped workflow can't silently ship a
           # build pointing at someone else's relay.
-          VEIL_RELAY_URL: ${{ vars.VEIL_RELAY_URL }}
+          RELAY_URL: ${{ vars.RELAY_URL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
           # macOS signing is DELIBERATELY ABSENT, not merely unset.
@@ -99,7 +99,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: veil-${{ matrix.name }}
+          name: securechat365-${{ matrix.name }}
           path: |
             target/**/release/bundle/**/*.dmg
             target/**/release/bundle/**/*.msi

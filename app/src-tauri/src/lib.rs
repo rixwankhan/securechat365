@@ -1,7 +1,7 @@
 //! Tauri bridge. Owns the identity, runs the relay client, and exposes a small
 //! command surface to the frontend.
 //!
-//! Nothing here makes trust decisions — those all live in veil-core. This file
+//! Nothing here makes trust decisions — those all live in securechat365-core. This file
 //! moves data between the core and the window.
 
 use std::collections::HashMap;
@@ -11,16 +11,16 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::{mpsc, Mutex};
 
-use veil_core::client::{ClientEvent, Command, Outbox, RelayClient};
-use veil_core::crypto::{safety_number, Identity, Vault};
-use veil_core::identity::ContactId;
+use securechat365_core::client::{ClientEvent, Command, Outbox, RelayClient};
+use securechat365_core::crypto::{safety_number, Identity, Vault};
+use securechat365_core::identity::ContactId;
 
-/// Set at build time: `VEIL_RELAY_URL=wss://relay.example.com/ws npm run tauri build`
+/// Set at build time: `RELAY_URL=wss://relay.example.com/ws npm run tauri build`
 ///
 /// Baked in rather than read at runtime on purpose. A messenger that lets an
 /// env var or config file redirect it to another relay is one social-engineering
 /// step away from routing a user's traffic somewhere they didn't choose.
-const RELAY_URL: &str = match option_env!("VEIL_RELAY_URL") {
+const RELAY_URL: &str = match option_env!("RELAY_URL") {
     Some(url) => url,
     None => "ws://localhost:8080/ws",
 };
@@ -63,7 +63,7 @@ fn data_dir(app: &AppHandle) -> Result<std::path::PathBuf> {
     // identities. Debug builds only — a release build that lets an env var
     // relocate the vault is an attack surface, not a feature.
     #[cfg(debug_assertions)]
-    if let Ok(override_path) = std::env::var("VEIL_DATA_DIR") {
+    if let Ok(override_path) = std::env::var("SECURECHAT_DATA_DIR") {
         let dir = std::path::PathBuf::from(override_path);
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         return Ok(dir);
@@ -220,7 +220,7 @@ async fn install(
                     | ClientEvent::MessageReceived { .. }
             );
 
-            let _ = sink.emit("veil", &event);
+            let _ = sink.emit("securechat365", &event);
 
             if ratchet_moved {
                 let passphrase = save_passphrase.lock().await.clone();
@@ -259,7 +259,7 @@ async fn add_contact(
     id: String,
     name: String,
 ) -> Result<Contact> {
-    let parsed: ContactId = id.parse().map_err(|e: veil_core::identity::ParseError| {
+    let parsed: ContactId = id.parse().map_err(|e: securechat365_core::identity::ParseError| {
         format!("That ID doesn't look right — {e}")
     })?;
 

@@ -1,5 +1,5 @@
 [package]
-name = "veil-core"
+name = "securechat365-core"
 version.workspace = true
 edition.workspace = true
 

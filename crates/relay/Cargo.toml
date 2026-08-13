@@ -1,5 +1,5 @@
 [package]
-name = "veil-relay"
+name = "securechat365-relay"
 version.workspace = true
 edition.workspace = true
 

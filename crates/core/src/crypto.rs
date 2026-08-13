@@ -469,7 +469,7 @@ pub fn safety_number(ours: &Ed25519PublicKey, theirs: &Ed25519PublicKey) -> Stri
     // Iterated hashing raises the cost of grinding a key whose safety number
     // collides in the digits a human actually bothers to check.
     let mut digest = Sha256::new()
-        .chain_update(b"veil-safety-number-v1")
+        .chain_update(b"securechat365-safety-number-v1")
         .chain_update(a)
         .chain_update(b)
         .finalize();

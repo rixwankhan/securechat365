@@ -65,15 +65,25 @@ jobs:
           VEIL_RELAY_URL: ${{ vars.VEIL_RELAY_URL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-          # macOS signing and notarisation. Leave these secrets unset and the
-          # build still succeeds — it just produces an unsigned bundle that
-          # Gatekeeper will block on other machines.
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # macOS signing is DELIBERATELY ABSENT, not merely unset.
+          #
+          # An unset GitHub secret expands to an empty string, not to nothing.
+          # tauri-action checks whether APPLE_CERTIFICATE is *defined*, so an
+          # empty value sends it down the signing path with a zero-byte
+          # certificate, and `security import` fails with:
+          #   SecKeychainItemImport: One or more parameters ... were not valid
+          #
+          # Omitting the keys entirely produces unsigned bundles instead.
+          # Gatekeeper blocks those on other people's Macs, which is fine until
+          # you have a Developer ID. When you do, add the block below back —
+          # and only once every one of those secrets actually has a value.
+          #
+          #   APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          #   APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          #   APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          #   APPLE_ID: ${{ secrets.APPLE_ID }}
+          #   APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          #   APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           projectPath: app
           args: ${{ matrix.args }}

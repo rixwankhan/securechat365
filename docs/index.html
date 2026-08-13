@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SecureChat365 — encrypted messaging without a phone number</title>
+<meta name="description" content="An end-to-end encrypted 1:1 messenger. Your account is a 72-character key, not a phone number. Open source, built on the Olm double ratchet.">
+
+<meta property="og:title" content="SecureChat365">
+<meta property="og:description" content="Encrypted 1:1 messaging. Your account is a key, not a phone number.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://securechat365.com/">
+
+<style>
+  /* No webfonts, no CDN, no analytics. A privacy tool's own site shouldn't
+     announce its visitors to three other companies. */
+  :root {
+    --paper:  #E7EAF0;
+    --card:   #FFFFFF;
+    --ink:    #14161D;
+    --dim:    #616779;
+    --rule:   #C7CCD9;
+    --navy:   #2E4A7D;
+    --jade:   #1B6B50;
+    --ochre:  #8A6412;
+
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+    --gap: clamp(56px, 9vw, 104px);
+    --edge: clamp(20px, 5vw, 48px);
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--ui);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: var(--navy); }
+  a:focus-visible, button:focus-visible {
+    outline: 2px solid var(--navy); outline-offset: 3px;
+  }
+
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 var(--edge); }
+
+  /* Monospace, tracked out, uppercase — the same utility voice the app uses
+     for keys and status. It carries the personality here too. */
+  .label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  /* ---------- masthead ---------- */
+  header {
+    border-bottom: 1px solid var(--rule);
+    background: var(--card);
+  }
+  .masthead {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 20px; padding: 16px 0;
+  }
+  .brand {
+    font-family: var(--mono);
+    font-size: 13px; letter-spacing: 0.26em; text-transform: uppercase;
+    font-weight: 600;
+  }
+  .masthead nav { display: flex; gap: 22px; }
+  .masthead nav a {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em;
+    text-transform: uppercase; text-decoration: none; color: var(--dim);
+  }
+  .masthead nav a:hover { color: var(--ink); }
+  @media (max-width: 600px) { .masthead nav a.hide-sm { display: none; } }
+
+  /* ---------- hero ---------- */
+  .hero { padding: var(--gap) 0 calc(var(--gap) * 0.7); }
+  .hero h1 {
+    font-size: clamp(38px, 7.5vw, 76px);
+    line-height: 1.02;
+    letter-spacing: -0.03em;
+    font-weight: 600;
+    margin: 0 0 22px;
+    max-width: 15ch;
+  }
+  .hero .lede {
+    font-size: clamp(17px, 2.1vw, 20px);
+    color: var(--dim);
+    max-width: 54ch;
+    margin: 0 0 44px;
+  }
+
+  /* ---------- the signature: an ID, taken apart ---------- */
+  .keycard {
+    background: var(--card);
+    border: 1px solid var(--rule);
+    padding: clamp(20px, 3.5vw, 34px);
+  }
+  .keycard-top {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; margin-bottom: 18px;
+  }
+
+  /* Eight swatches derived from the key's own bytes. The app draws the same
+     strip beside every contact — two people can match a pattern faster and
+     more reliably than 72 hex characters. */
+  .strip { display: flex; gap: 3px; width: 104px; height: 18px; }
+  .strip i { display: block; flex: 1; }
+
+  .keyline {
+    font-family: var(--mono);
+    font-size: clamp(13px, 2.4vw, 21px);
+    line-height: 1.85;
+    letter-spacing: 0.04em;
+    word-break: break-all;
+    margin: 0;
+  }
+  .keyline .pub    { color: var(--ink); }
+  .keyline .nospam { color: var(--navy); }
+  .keyline .cksum  { color: var(--jade); }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 10px 26px;
+    margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--rule);
+  }
+  .legend div { display: flex; align-items: baseline; gap: 8px; }
+  .legend .swatch { width: 9px; height: 9px; flex-shrink: 0; }
+  .legend .n { font-family: var(--mono); font-size: 11px; color: var(--dim); }
+
+  .reroll {
+    font: inherit; font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    background: none; border: 1px solid var(--rule); color: var(--dim);
+    padding: 7px 13px; cursor: pointer;
+  }
+  .reroll:hover { border-color: var(--ink); color: var(--ink); }
+
+  .caption { margin: 16px 0 0; font-size: 14px; color: var(--dim); max-width: 60ch; }
+
+  /* ---------- alpha notice ---------- */
+  .notice {
+    background: #FBF7EC;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    padding: 20px 0;
+  }
+  .notice .wrap { display: flex; gap: 14px; align-items: flex-start; }
+  .notice .bar { width: 3px; align-self: stretch; background: var(--ochre); flex-shrink: 0; }
+  .notice p { margin: 0; font-size: 15px; }
+  .notice strong { color: var(--ochre); }
+
+  /* ---------- sections ---------- */
+  section { padding: var(--gap) 0; }
+  section + section { border-top: 1px solid var(--rule); }
+  h2 {
+    font-size: clamp(26px, 4vw, 38px);
+    letter-spacing: -0.02em; font-weight: 600;
+    margin: 6px 0 12px; max-width: 20ch;
+  }
+  .section-lede { color: var(--dim); max-width: 58ch; margin: 0 0 40px; }
+
+  .claims { display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+  @media (min-width: 760px) { .claims { grid-template-columns: repeat(3, 1fr); } }
+  .claim { background: var(--card); padding: 28px; }
+  .claim h3 { font-size: 18px; margin: 10px 0 8px; font-weight: 600; }
+  .claim p { margin: 0; font-size: 15px; color: var(--dim); }
+
+  /* Numbered because this genuinely is a sequence — you cannot verify someone
+     before you have added them. */
+  .steps { display: grid; gap: 28px; }
+  @media (min-width: 760px) { .steps { grid-template-columns: repeat(3, 1fr); gap: 40px; } }
+  .step { border-top: 2px solid var(--ink); padding-top: 16px; }
+  .step .num { font-family: var(--mono); font-size: 11px; letter-spacing: 0.18em; color: var(--dim); }
+  .step h3 { font-size: 17px; margin: 8px 0 8px; font-weight: 600; }
+  .step p { margin: 0; font-size: 15px; color: var(--dim); }
+
+  /* ---------- downloads ---------- */
+  .dl { border: 1px solid var(--rule); background: var(--card); }
+  .dl-row {
+    display: flex; align-items: center; gap: 16px;
+    padding: 18px clamp(16px, 3vw, 26px);
+    border-bottom: 1px solid var(--rule);
+    text-decoration: none; color: inherit;
+  }
+  .dl-row:last-child { border-bottom: 0; }
+  .dl-row:hover { background: var(--paper); }
+  .dl-row .os { font-weight: 600; min-width: 150px; }
+  .dl-row .meta { font-family: var(--mono); font-size: 12px; color: var(--dim); flex: 1; }
+  .dl-row .go {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--navy); white-space: nowrap;
+  }
+  .dl-row.pending { color: var(--dim); }
+  .dl-row.pending .go { color: var(--dim); }
+  @media (max-width: 620px) {
+    .dl-row { flex-wrap: wrap; gap: 4px 14px; }
+    .dl-row .os { min-width: 0; width: 100%; }
+    .dl-row .meta { flex-basis: 100%; }
+  }
+
+  .dl-note { margin: 18px 0 0; font-size: 14px; color: var(--dim); max-width: 62ch; }
+
+  /* ---------- honesty table ---------- */
+  .limits { display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+  @media (min-width: 760px) { .limits { grid-template-columns: 1fr 1fr; } }
+  .limits > div { background: var(--card); padding: 28px; }
+  .limits h3 { font-size: 15px; margin: 0 0 16px; font-weight: 600; }
+  .limits ul { margin: 0; padding-left: 18px; }
+  .limits li { font-size: 15px; color: var(--dim); margin-bottom: 9px; }
+  .limits .yes h3 { color: var(--jade); }
+  .limits .no h3 { color: var(--ochre); }
+
+  /* ---------- footer ---------- */
+  footer {
+    border-top: 1px solid var(--rule);
+    background: var(--card);
+    padding: 40px 0;
+  }
+  .foot { display: flex; flex-wrap: wrap; gap: 20px 40px; justify-content: space-between; }
+  .foot p { margin: 0; font-size: 14px; color: var(--dim); max-width: 46ch; }
+  .foot nav { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+  .foot nav a {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em;
+    text-transform: uppercase; text-decoration: none; color: var(--dim);
+  }
+  .foot nav a:hover { color: var(--ink); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap masthead">
+    <div class="brand">SecureChat365</div>
+    <nav>
+      <a href="#how" class="hide-sm">How it works</a>
+      <a href="#download">Download</a>
+      <a href="https://github.com/rixwankhan/securechat365">Source</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap hero">
+  <h1>Your account is a key.</h1>
+  <p class="lede">
+    No phone number, no email, no signup. SecureChat365 generates a keypair on
+    your device the first time you open it. The public half is your contact ID —
+    share it however you like. Messages are end-to-end encrypted with the Olm
+    double ratchet, and the server that carries them cannot read a word.
+  </p>
+
+  <div class="keycard">
+    <div class="keycard-top">
+      <span class="label">A contact ID</span>
+      <button class="reroll" id="reroll" type="button">Generate another</button>
+    </div>
+
+    <div class="strip" id="strip" aria-hidden="true"></div>
+
+    <p class="keyline" id="keyline" aria-label="Example 72-character contact ID"></p>
+
+    <div class="legend">
+      <div>
+        <span class="swatch" style="background: var(--ink)"></span>
+        <span class="n">64 &middot; public key</span>
+      </div>
+      <div>
+        <span class="swatch" style="background: var(--navy)"></span>
+        <span class="n">4 &middot; nospam</span>
+      </div>
+      <div>
+        <span class="swatch" style="background: var(--jade)"></span>
+        <span class="n">4 &middot; checksum</span>
+      </div>
+    </div>
+  </div>
+
+  <p class="caption">
+    The last four characters catch every single-character typo. The four before
+    them can be rotated to stop unwanted contact requests, without changing your
+    key or breaking existing conversations.
+  </p>
+</div>
+
+<div class="notice">
+  <div class="wrap">
+    <div class="bar"></div>
+    <p>
+      <strong>Alpha, and not yet audited.</strong>
+      This works and you can use it, but the cryptography has not been reviewed
+      by anyone outside the project, and contact verification is incomplete.
+      Treat it as something to try, not something to depend on.
+      <a href="https://github.com/rixwankhan/securechat365#known-gaps">See the full list of known gaps.</a>
+    </p>
+  </div>
+</div>
+
+<section>
+  <div class="wrap">
+    <span class="label">Why it's different</span>
+    <h2>Three things most messengers won't tell you</h2>
+
+    <div class="claims">
+      <div class="claim">
+        <span class="label">Identity</span>
+        <h3>Nothing links to you</h3>
+        <p>
+          A phone number ties every conversation to your legal identity and hands
+          your contact list to a server. There is no number here, and no account
+          to seize.
+        </p>
+      </div>
+      <div class="claim">
+        <span class="label">The server</span>
+        <h3>It only sees ciphertext</h3>
+        <p>
+          Messages are encrypted before they leave your device and decrypted only
+          on the other one. The relay stores and forwards bytes it has no key for.
+        </p>
+      </div>
+      <div class="claim">
+        <span class="label">The code</span>
+        <h3>You can read all of it</h3>
+        <p>
+          Client, server, and threat model are public. Run your own relay if you
+          would rather not trust ours.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <span class="label">How it works</span>
+    <h2>Three steps, in this order</h2>
+    <p class="section-lede">
+      The order matters. You cannot verify someone before you have added them,
+      and adding them is what tells your device which key to expect.
+    </p>
+
+    <div class="steps">
+      <div class="step">
+        <span class="num">Step 1</span>
+        <h3>Share your ID</h3>
+        <p>
+          Show the QR code or send the 72 characters. Any channel works — the
+          next two steps are what catch tampering.
+        </p>
+      </div>
+      <div class="step">
+        <span class="num">Step 2</span>
+        <h3>They add you</h3>
+        <p>
+          Their app fetches your public keys and checks them against the ID they
+          scanned. If those disagree, it refuses and says so.
+        </p>
+      </div>
+      <div class="step">
+        <span class="num">Step 3</span>
+        <h3>Compare safety numbers</h3>
+        <p>
+          Read the digits aloud in person or on a call. Matching numbers mean no
+          one is sitting between you. This is the step that actually proves it.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="download">
+  <div class="wrap">
+    <span class="label">Version 0.1.0</span>
+    <h2>Download</h2>
+    <p class="section-lede">
+      Same app on every platform. Pick the build that matches your machine.
+    </p>
+
+    <div class="dl">
+      <a class="dl-row" href="https://github.com/rixwankhan/securechat365/releases/download/v0.1.0/securechat365_0.1.0_aarch64.dmg">
+        <span class="os">macOS</span>
+        <span class="meta">Apple silicon &middot; .dmg</span>
+        <span class="go">Download</span>
+      </a>
+      <a class="dl-row" href="https://github.com/rixwankhan/securechat365/releases/download/v0.1.0/securechat365_0.1.0_x64.dmg">
+        <span class="os">macOS</span>
+        <span class="meta">Intel &middot; .dmg</span>
+        <span class="go">Download</span>
+      </a>
+      <a class="dl-row" href="https://github.com/rixwankhan/securechat365/releases/download/v0.1.0/securechat365_0.1.0_x64_en-US.msi">
+        <span class="os">Windows</span>
+        <span class="meta">64-bit &middot; .msi</span>
+        <span class="go">Download</span>
+      </a>
+      <a class="dl-row" href="https://github.com/rixwankhan/securechat365/releases/download/v0.1.0/securechat365_0.1.0_amd64.AppImage">
+        <span class="os">Linux</span>
+        <span class="meta">64-bit &middot; .AppImage</span>
+        <span class="go">Download</span>
+      </a>
+      <a class="dl-row" href="https://github.com/rixwankhan/securechat365/releases/download/v0.1.0/securechat365_0.1.0_amd64.deb">
+        <span class="os">Linux</span>
+        <span class="meta">Debian, Ubuntu &middot; .deb</span>
+        <span class="go">Download</span>
+      </a>
+      <a class="dl-row pending" href="https://github.com/rixwankhan/securechat365/releases">
+        <span class="os">Android</span>
+        <span class="meta">Builds in progress</span>
+        <span class="go">Not yet</span>
+      </a>
+      <a class="dl-row pending" href="https://github.com/rixwankhan/securechat365/releases">
+        <span class="os">iOS</span>
+        <span class="meta">Builds in progress</span>
+        <span class="go">Not yet</span>
+      </a>
+    </div>
+
+    <p class="dl-note">
+      The desktop builds are not code-signed yet, so macOS and Windows will warn
+      you before opening them. That warning is accurate: nothing has vouched for
+      these files. If that isn't a trade you want to make, build from source
+      instead.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <span class="label">Threat model</span>
+    <h2>What it protects, and what it doesn't</h2>
+    <p class="section-lede">
+      A security tool that overstates itself is worse than one that makes no
+      claims at all. Here is the honest version.
+    </p>
+
+    <div class="limits">
+      <div class="yes">
+        <h3>Protected</h3>
+        <ul>
+          <li>Anyone reading your messages, including whoever runs the server</li>
+          <li>A server substituting its own keys to impersonate a contact</li>
+          <li>Anyone watching the network between you</li>
+          <li>Past and future messages if a key is later compromised</li>
+          <li>Someone who seizes the server after the fact</li>
+        </ul>
+      </div>
+      <div class="no">
+        <h3>Not protected</h3>
+        <ul>
+          <li>Who you talk to and when — the relay sees that, and it is often the more sensitive fact</li>
+          <li>A device someone else has unlocked, or one running malware</li>
+          <li>A compromised operating system</li>
+          <li>Traffic analysis — there is no padding or cover traffic</li>
+          <li>The person you are talking to screenshotting the conversation</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot">
+    <p>
+      SecureChat365 is free software under the AGPL. Run your own relay, read
+      the code, or send a patch.
+    </p>
+    <nav>
+      <a href="https://github.com/rixwankhan/securechat365">GitHub</a>
+      <a href="https://github.com/rixwankhan/securechat365#threat-model">Threat model</a>
+      <a href="https://github.com/rixwankhan/securechat365#contributing">Contribute</a>
+      <a href="mailto:security@securechat365.com">Report a vulnerability</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+  // Swatch palette shared with the app, so a key looks the same in both places.
+  var SWATCH = ['#2E4A7D','#1B6B50','#8A6412','#7A3B62','#3C6E7A','#6B4A2E','#4A4A78','#2B6650'];
+  var HEX = '0123456789ABCDEF';
+
+  var keyline = document.getElementById('keyline');
+  var stripEl = document.getElementById('strip');
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var timer = null;
+
+  function randomId() {
+    var bytes = new Uint8Array(36);
+    (window.crypto || window.msCrypto).getRandomValues(bytes);
+
+    // Real checksum: byte 0 XORs the even-indexed bytes of key+nospam,
+    // byte 1 the odd-indexed ones. Same rule the app uses, so these examples
+    // are valid IDs rather than random-looking noise.
+    var c0 = 0, c1 = 0;
+    for (var i = 0; i < 34; i++) {
+      if (i % 2 === 0) { c0 ^= bytes[i]; } else { c1 ^= bytes[i]; }
+    }
+    bytes[34] = c0; bytes[35] = c1;
+
+    var hex = '';
+    for (var j = 0; j < 36; j++) {
+      hex += bytes[j].toString(16).toUpperCase().padStart(2, '0');
+    }
+    return hex;
+  }
+
+  function paintStrip(id) {
+    stripEl.innerHTML = '';
+    for (var i = 0; i < 8; i++) {
+      var byte = parseInt(id.substr(i * 2, 2), 16) || 0;
+      var cell = document.createElement('i');
+      cell.style.background = SWATCH[byte % SWATCH.length];
+      cell.style.opacity = 0.45 + (byte % 6) * 0.11;
+      stripEl.appendChild(cell);
+    }
+  }
+
+  function paintKey(id) {
+    keyline.innerHTML =
+      '<span class="pub">' + id.slice(0, 64) + '</span>' +
+      '<span class="nospam">' + id.slice(64, 68) + '</span>' +
+      '<span class="cksum">' + id.slice(68) + '</span>';
+  }
+
+  // One deliberate moment of motion: the key resolves out of noise, the way a
+  // generated key does. Nothing else on the page animates.
+  function reveal(id) {
+    clearTimeout(timer);
+    if (reduce) { paintKey(id); paintStrip(id); return; }
+
+    var settled = 0;
+    paintStrip(id);
+
+    (function tick() {
+      var out = '';
+      for (var i = 0; i < 72; i++) {
+        out += i < settled ? id[i] : HEX[(Math.random() * 16) | 0];
+      }
+      paintKey(out);
+      settled += 4;
+      if (settled <= 72) { timer = setTimeout(tick, 22); }
+      else { paintKey(id); }
+    })();
+  }
+
+  document.getElementById('reroll').addEventListener('click', function () {
+    reveal(randomId());
+  });
+
+  reveal(randomId());
+</script>
+
+</body>
+</html>

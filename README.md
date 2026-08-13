@@ -7,6 +7,11 @@ what you send.
 Built with Rust and Tauri. Runs on macOS, Windows, Linux, iOS and Android from
 one codebase.
 
+**[securechat365.com](https://securechat365.com/)** &nbsp;·&nbsp;
+**[Download](https://github.com/rixwankhan/securechat365/releases/latest)** &nbsp;·&nbsp;
+**[Threat model](#threat-model)** &nbsp;·&nbsp;
+**[Known gaps](#known-gaps)**
+
 > **Status: alpha. Not audited. Do not rely on this for anything that matters
 > yet.** See [Known gaps](#known-gaps) for the specific reasons.
 
@@ -18,6 +23,7 @@ one codebase.
 - [Threat model](#threat-model)
 - [How it works](#how-it-works)
 - [Repository layout](#repository-layout)
+- [Installing](#installing)
 - [Getting started](#getting-started)
 - [Running the relay](#running-the-relay)
 - [Building for each platform](#building-for-each-platform)
@@ -213,9 +219,32 @@ what makes it reviewable — an auditor reads roughly a thousand lines instead o
 a whole application. `app/src-tauri` moves data between the core and the window
 and makes no trust decisions.
 
-> Crate names, the `VEIL_*` environment variables, and the `veil:` URI scheme
-> still use the project's original working name. Renaming them is a good first
-> contribution.
+> The `securechat365:` URI scheme is registered as a deep link, so scanning a
+> contact QR code opens the app straight to "add contact". Changing it would
+> invalidate every QR code already in circulation.
+
+---
+
+## Installing
+
+Prebuilt desktop apps are on the
+[releases page](https://github.com/rixwankhan/securechat365/releases/latest)
+and at [securechat365.com](https://securechat365.com/).
+
+| Platform | File |
+|---|---|
+| macOS, Apple silicon | `securechat365_x.y.z_aarch64.dmg` |
+| macOS, Intel | `securechat365_x.y.z_x64.dmg` |
+| Windows | `securechat365_x.y.z_x64_en-US.msi` |
+| Linux | `securechat365_x.y.z_amd64.AppImage` or `.deb` |
+
+Mobile builds are not published yet.
+
+**The builds are not code-signed.** macOS reports unsigned apps as *damaged*,
+which is misleading but is what you'll see — right-click the app and choose
+**Open** to get past it. Windows shows a SmartScreen warning. Both warnings are
+accurate in the sense that nothing has vouched for these files. Verify the
+SHA-256 checksums published with each release, or build from source.
 
 ---
 
@@ -352,7 +381,6 @@ An honest list. Roughly in the order they should be fixed.
 
 ### Wanted
 
-- [ ] Rename the `veil` crates, env vars, and URI scheme
 - [ ] Message delete, edit, and delivery receipts
 - [ ] Reproducible builds and published checksums
 - [ ] Relay federation, so users can choose their server

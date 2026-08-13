@@ -20,9 +20,13 @@ use securechat365_core::identity::ContactId;
 /// Baked in rather than read at runtime on purpose. A messenger that lets an
 /// env var or config file redirect it to another relay is one social-engineering
 /// step away from routing a user's traffic somewhere they didn't choose.
-const RELAY_URL: &str = match option_env!("VEIL_RELAY_URL") {
-    Some(url) => url,
-    None => "ws://localhost:8080/ws",
+/// Note the empty check. An unset GitHub Actions variable expands to an empty
+/// string, and `option_env!` reports that as `Some("")` — so without this, a CI
+/// build with a missing variable compiles cleanly and ships a client that can
+/// never connect to anything, with no error to explain why.
+const RELAY_URL: &str = match option_env!("RELAY_URL") {
+    Some(url) if !url.is_empty() => url,
+    _ => "ws://localhost:8080/ws",
 };
 
 // --- persisted shapes -----------------------------------------------------
@@ -202,6 +206,7 @@ async fn install(
     *state.commands.lock().await = Some(tx);
 
     let outbox = Arc::new(Mutex::new(Outbox::default()));
+    eprintln!("relay: {RELAY_URL}");
     let (client, mut events) = RelayClient::new(RELAY_URL, identity.clone(), outbox);
 
     // Forward core events to the window, and save the vault whenever the

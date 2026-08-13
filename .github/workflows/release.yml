@@ -53,6 +53,19 @@ jobs:
           cache: npm
           cache-dependency-path: app/package-lock.json
 
+      # A missing repository variable expands to an empty string, not to
+      # nothing, and option_env! reports that as Some(""). The build then
+      # succeeds and ships a client that can never connect. Fail here instead.
+      - name: Check RELAY_URL is set
+        shell: bash
+        run: |
+          if [ -z "${{ vars.RELAY_URL }}" ]; then
+            echo "::error::Repository variable RELAY_URL is not set."
+            echo "Settings > Secrets and variables > Actions > Variables"
+            exit 1
+          fi
+          echo "Building against ${{ vars.RELAY_URL }}"
+
       - name: Install frontend dependencies
         working-directory: app
         run: npm ci
@@ -62,7 +75,7 @@ jobs:
           # Baked into the binary at compile time. Set this as a repository
           # variable so a fork or a mistyped workflow can't silently ship a
           # build pointing at someone else's relay.
-          RELAY_URL: ${{ vars.RELAY_URL }}
+          VEIL_RELAY_URL: ${{ vars.VEIL_RELAY_URL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
           # macOS signing is DELIBERATELY ABSENT, not merely unset.
@@ -99,7 +112,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: securechat365-${{ matrix.name }}
+          name: veil-${{ matrix.name }}
           path: |
             target/**/release/bundle/**/*.dmg
             target/**/release/bundle/**/*.msi

@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Veil</title>
+<style>
+  :root {
+    --paper:    #E7EAF0;
+    --card:     #FFFFFF;
+    --ink:      #14161D;
+    --dim:      #616779;
+    --rule:     #C7CCD9;
+    --self:     #2E4A7D;
+    --verified: #1B6B50;
+    --caution:  #8A6412;
+
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+
+    --pad: 20px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0; height: 100%;
+    background: var(--paper); color: var(--ink);
+    font-family: var(--ui); font-size: 15px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* The app's typographic signature: monospace, tracked out, as the display
+     face. The product's real face is a 72-character key, so the type follows. */
+  .label {
+    font-family: var(--mono);
+    font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  button {
+    font: inherit; cursor: pointer; border: 1px solid var(--ink);
+    background: var(--ink); color: var(--card);
+    padding: 9px 16px; border-radius: 2px;
+  }
+  button:hover { opacity: 0.88; }
+  button.ghost { background: none; color: var(--ink); border-color: var(--rule); }
+  button:focus-visible, input:focus-visible, textarea:focus-visible {
+    outline: 2px solid var(--self); outline-offset: 2px;
+  }
+
+  input, textarea {
+    font: inherit; width: 100%; padding: 10px 12px;
+    border: 1px solid var(--rule); border-radius: 2px;
+    background: var(--card); color: var(--ink);
+  }
+  input.key, textarea.key { font-family: var(--mono); font-size: 13px; }
+
+  /* ---- key strip: eight swatches derived from the public key ------------
+     Not decoration. Two people comparing keys can match a pattern faster and
+     more reliably than 72 hex characters, so this does real work. */
+  .strip { display: flex; gap: 2px; }
+  .strip i { display: block; width: 100%; height: 100%; }
+  .strip.sm { width: 56px; height: 14px; }
+  .strip.lg { width: 100%; height: 26px; }
+
+  /* ---- screens --------------------------------------------------------- */
+  .screen { display: none; height: 100%; }
+  .screen.on { display: flex; }
+
+  #lock { align-items: center; justify-content: center; padding: var(--pad); }
+  .gate { width: 100%; max-width: 380px; }
+  .gate h1 {
+    font-family: var(--mono); font-size: 13px; letter-spacing: 0.3em;
+    text-transform: uppercase; font-weight: 500; margin: 0 0 4px;
+  }
+  .gate p.sub { color: var(--dim); font-size: 13px; margin: 0 0 24px; }
+  .gate label { display: block; margin-bottom: 6px; }
+  .gate button { width: 100%; margin-top: 14px; }
+  .warn {
+    font-size: 12px; color: var(--dim); margin-top: 16px;
+    border-left: 2px solid var(--caution); padding-left: 10px;
+  }
+
+  /* ---- main ------------------------------------------------------------ */
+  #main { flex-direction: row; }
+
+  aside {
+    width: 300px; flex-shrink: 0; background: var(--card);
+    border-right: 1px solid var(--rule);
+    display: flex; flex-direction: column;
+  }
+  .aside-head {
+    padding: var(--pad); border-bottom: 1px solid var(--rule);
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  }
+  .aside-head .strip { cursor: pointer; }
+
+  .contacts { flex: 1; overflow-y: auto; }
+  .contact {
+    padding: 13px var(--pad); border-bottom: 1px solid var(--paper);
+    cursor: pointer; display: flex; align-items: center; gap: 12px;
+  }
+  .contact:hover { background: var(--paper); }
+  .contact[aria-selected="true"] { background: var(--paper); box-shadow: inset 3px 0 0 var(--self); }
+  .contact .meta { min-width: 0; }
+  .contact .nm { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .contact .st { font-size: 11px; font-family: var(--mono); }
+  .st.ok { color: var(--verified); }
+  .st.no { color: var(--caution); }
+
+  .requests { border-bottom: 1px solid var(--rule); background: #FBF7EC; }
+  .requests .hdr { padding: 11px var(--pad) 4px; }
+  .request { padding: 10px var(--pad) 14px; }
+  .request .top { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .request .preview {
+    font-size: 13px; color: var(--dim); margin: 0 0 9px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .request .acts { display: flex; gap: 7px; }
+  .request .acts button { flex: 1; padding: 6px 10px; font-size: 13px; }
+  .request .idfrag { font-family: var(--mono); font-size: 11px; color: var(--dim); }
+
+  .aside-foot { padding: 14px var(--pad); border-top: 1px solid var(--rule); }
+  .aside-foot button { width: 100%; }
+
+  main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .conv-head {
+    padding: 14px var(--pad); border-bottom: 1px solid var(--rule);
+    background: var(--card); display: flex; align-items: center;
+    justify-content: space-between; gap: 12px;
+  }
+  .conv-head .back { display: none; }
+
+  .thread { flex: 1; overflow-y: auto; padding: var(--pad); }
+  .empty {
+    height: 100%; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 8px;
+    color: var(--dim); text-align: center; padding: var(--pad);
+  }
+
+  .msg { max-width: min(560px, 78%); margin-bottom: 10px; }
+  .msg .body {
+    padding: 9px 13px; border-radius: 3px; background: var(--card);
+    border: 1px solid var(--rule); white-space: pre-wrap; word-break: break-word;
+    animation: rise 160ms ease-out;
+  }
+  .msg.mine { margin-left: auto; }
+  .msg.mine .body { background: var(--self); border-color: var(--self); color: #fff; }
+  .msg .time { font-family: var(--mono); font-size: 10px; color: var(--dim); margin-top: 3px; }
+  .msg.mine .time { text-align: right; }
+  @keyframes rise { from { opacity: 0; transform: translateY(3px); } }
+  @media (prefers-reduced-motion: reduce) { .msg .body { animation: none; } }
+
+  .composer {
+    display: flex; gap: 10px; padding: 14px var(--pad);
+    border-top: 1px solid var(--rule); background: var(--card);
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+  }
+  .composer textarea { resize: none; height: 42px; }
+
+  /* ---- sheets ---------------------------------------------------------- */
+  .sheet {
+    position: fixed; inset: 0; background: rgba(20,22,29,0.4);
+    display: none; align-items: center; justify-content: center; padding: var(--pad);
+  }
+  .sheet.on { display: flex; }
+  .sheet-inner {
+    background: var(--card); border-radius: 3px; padding: 24px;
+    width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto;
+  }
+  .sheet-inner h2 { font-size: 16px; margin: 0 0 16px; font-weight: 600; }
+  .sheet-inner .row { display: flex; gap: 10px; margin-top: 16px; }
+  .sheet-inner .row button { flex: 1; }
+  .qr { display: flex; justify-content: center; margin: 16px 0; }
+  .qr svg { width: 200px; height: 200px; }
+  .idbox {
+    font-family: var(--mono); font-size: 12px; line-height: 1.9;
+    word-break: break-all; background: var(--paper); padding: 12px;
+    border-radius: 2px; user-select: all;
+  }
+  .digits {
+    font-family: var(--mono); font-size: 17px; letter-spacing: 0.06em;
+    line-height: 2; text-align: center; background: var(--paper);
+    padding: 14px; border-radius: 2px;
+  }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; margin-bottom: 6px; }
+
+  #toast {
+    position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%);
+    background: var(--ink); color: var(--card); padding: 11px 18px;
+    border-radius: 2px; font-size: 13px; max-width: 90vw;
+    opacity: 0; pointer-events: none; transition: opacity 180ms;
+  }
+  #toast.on { opacity: 1; }
+  #toast.alarm { background: var(--caution); }
+
+  @media (max-width: 720px) {
+    #main aside { width: 100%; }
+    #main.viewing aside { display: none; }
+    #main:not(.viewing) main { display: none; }
+    .conv-head .back { display: inline-block; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===================== lock ===================== -->
+<section id="lock" class="screen on">
+  <div class="gate">
+    <h1>Veil</h1>
+    <p class="sub" id="gate-sub">Private messages. No phone number.</p>
+
+    <div class="field">
+      <label class="label" for="pass">Passphrase</label>
+      <input id="pass" type="password" autocomplete="current-password" placeholder="At least 8 characters">
+    </div>
+
+    <button id="gate-go">Unlock</button>
+    <button id="gate-reset" class="ghost" style="width:100%;margin-top:8px" hidden>
+      Start over with a new identity
+    </button>
+
+    <p class="warn" id="gate-warn">
+      Your passphrase is the only thing protecting your keys. It is not stored
+      anywhere and cannot be recovered. Write it down somewhere safe.
+    </p>
+  </div>
+</section>
+
+<!-- ===================== main ===================== -->
+<section id="main" class="screen">
+  <aside>
+    <div class="aside-head">
+      <div>
+        <div class="label">Your key</div>
+        <div id="me-name" style="font-weight:500">You</div>
+      </div>
+      <div class="strip sm" id="me-strip" role="button" tabindex="0"
+           title="Show your ID and QR code"></div>
+    </div>
+
+    <div class="requests" id="requests" hidden></div>
+    <div class="contacts" id="contacts"></div>
+
+    <div class="aside-foot">
+      <button id="btn-add">Add contact</button>
+    </div>
+  </aside>
+
+  <main>
+    <div class="conv-head">
+      <button class="ghost back" id="btn-back">Back</button>
+      <div style="min-width:0">
+        <div id="conv-name" style="font-weight:500">No conversation</div>
+        <div class="st" id="conv-state"></div>
+      </div>
+      <button class="ghost" id="btn-verify" hidden>Verify</button>
+    </div>
+
+    <div class="thread" id="thread">
+      <div class="empty">
+        <div class="label">Nothing here yet</div>
+        <p style="max-width:280px;margin:0">
+          Add a contact with their 72-character ID, then send the first message.
+        </p>
+      </div>
+    </div>
+
+    <div class="composer">
+      <textarea id="input" placeholder="Message" rows="1" disabled></textarea>
+      <button id="btn-send" disabled>Send</button>
+    </div>
+  </main>
+</section>
+
+<!-- ===================== sheets ===================== -->
+<div class="sheet" id="sheet-me">
+  <div class="sheet-inner">
+    <h2>Your ID</h2>
+    <div class="strip lg" id="me-strip-lg"></div>
+    <div class="qr" id="me-qr"></div>
+    <div class="label" style="margin-bottom:6px">72-character key</div>
+    <div class="idbox" id="me-id"></div>
+    <div class="row">
+      <button class="ghost" data-close>Close</button>
+      <button id="btn-copy">Copy ID</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="sheet-add">
+  <div class="sheet-inner">
+    <h2 id="sheet-add-title">Add contact</h2>
+    <div class="field">
+      <label class="label" for="add-name">Name</label>
+      <input id="add-name" placeholder="What you'll call them">
+    </div>
+    <div class="field">
+      <label class="label" for="add-id">Their 72-character ID</label>
+      <textarea id="add-id" class="key" rows="3" placeholder="Paste or scan"></textarea>
+    </div>
+    <div class="row">
+      <button class="ghost" data-close>Cancel</button>
+      <button id="btn-add-go">Add</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="sheet-verify">
+  <div class="sheet-inner">
+    <h2>Verify <span id="v-name"></span></h2>
+    <p style="color:var(--dim);font-size:13px;margin:0 0 14px">
+      Read these numbers aloud in person or on a call. If they match on both
+      screens, no one is intercepting this conversation.
+    </p>
+    <div class="digits" id="v-digits"></div>
+    <div class="row">
+      <button class="ghost" data-close>Not now</button>
+      <button id="btn-verified">They match</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+const invoke = window.__TAURI__.core.invoke;
+const listen = window.__TAURI__.event.listen;
+
+const $ = (id) => document.getElementById(id);
+
+const state = {
+  me: null,
+  contacts: [],
+  active: null,
+  threads: {},   // contactId -> [{mine, text, at}]
+  orphans: {},   // hex public key -> messages that arrived before the contact existed
+  requests: {},  // hex public key -> { id, preview, at }
+  // Confirmations can arrive before the message is recorded, since the client
+  // sends faster than the invoke round-trip returns. Remember them.
+  confirmed: new Set(),
+};
+
+// ---- key strip ----------------------------------------------------------
+// Eight swatches from the first eight bytes of the public key. Deterministic,
+// so the same key always looks the same on every device.
+const SWATCH = ['#2E4A7D','#1B6B50','#8A6412','#7A3B62','#3C6E7A','#6B4A2E','#4A4A78','#2B6650'];
+
+function strip(el, hexId) {
+  if (!el) return;
+  el.innerHTML = '';
+  for (let i = 0; i < 8; i++) {
+    const byte = parseInt(hexId.slice(i * 2, i * 2 + 2), 16) || 0;
+    const cell = document.createElement('i');
+    cell.style.background = SWATCH[byte % SWATCH.length];
+    cell.style.opacity = 0.45 + (byte % 6) * 0.11;
+    el.appendChild(cell);
+  }
+}
+
+function toast(text, alarm = false) {
+  const t = $('toast');
+  t.textContent = text;
+  t.classList.toggle('alarm', alarm);
+  t.classList.add('on');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove('on'), alarm ? 6000 : 2600);
+}
+
+const clock = (ts) =>
+  new Date((ts || Date.now() / 1000) * 1000)
+    .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+// ---- gate ---------------------------------------------------------------
+let creating = false;
+
+async function initGate() {
+  const exists = await invoke('has_identity');
+  creating = !exists;
+  $('gate-go').textContent = creating ? 'Create identity' : 'Unlock';
+  $('gate-sub').textContent = creating
+    ? 'Choose a passphrase. This creates your key.'
+    : 'Private messages. No phone number.';
+  $('pass').setAttribute('autocomplete', creating ? 'new-password' : 'current-password');
+  $('gate-warn').hidden = !creating;
+}
+
+$('gate-go').addEventListener('click', async () => {
+  const passphrase = $('pass').value;
+  if (!passphrase) return toast('Enter your passphrase.');
+  $('gate-go').disabled = true;
+  try {
+    const info = await invoke(creating ? 'create_identity' : 'unlock', { passphrase });
+    state.me = info;
+    $('pass').value = '';
+    strip($('me-strip'), info.id);
+    strip($('me-strip-lg'), info.id);
+    $('me-id').textContent = info.display;
+    $('me-qr').innerHTML = info.qr_svg;
+    $('lock').classList.remove('on');
+    $('main').classList.add('on');
+    await refreshContacts();
+    if (creating) openSheet('sheet-me');
+  } catch (e) {
+    toast(String(e));
+    // Only offer the destructive option once something has actually gone
+    // wrong. A "start over" button next to a passphrase field invites people
+    // to erase their identity instead of remembering it.
+    $('gate-reset').hidden = false;
+  } finally {
+    $('gate-go').disabled = false;
+  }
+});
+
+// Two taps rather than a dialog: webview dialog support is inconsistent, and
+// this keeps the consequence on screen while you decide.
+let resetArmed = false;
+$('gate-reset').addEventListener('click', async () => {
+  if (!resetArmed) {
+    resetArmed = true;
+    $('gate-reset').textContent = 'Delete permanently — click again';
+    setTimeout(() => {
+      resetArmed = false;
+      $('gate-reset').textContent = 'Start over with a new identity';
+    }, 5000);
+    return;
+  }
+  await invoke('reset_identity');
+  resetArmed = false;
+  $('gate-reset').textContent = 'Start over with a new identity';
+  $('gate-reset').hidden = true;
+  $('pass').value = '';
+  await initGate();
+  toast('Identity deleted. Create a new one.');
+});
+
+$('pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('gate-go').click(); });
+
+// ---- contacts -----------------------------------------------------------
+async function refreshContacts() {
+  state.contacts = await invoke('list_contacts');
+  claimOrphans();
+  renderRequests();
+  const list = $('contacts');
+  list.innerHTML = '';
+
+  if (!state.contacts.length) {
+    list.innerHTML = '<div class="empty" style="height:auto;padding:32px 20px">' +
+      '<div class="label">No contacts</div></div>';
+    return;
+  }
+
+  for (const c of state.contacts) {
+    const row = document.createElement('div');
+    row.className = 'contact';
+    row.setAttribute('aria-selected', String(c.id === state.active));
+
+    const sw = document.createElement('div');
+    sw.className = 'strip sm';
+    strip(sw, c.id);
+
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.innerHTML =
+      `<div class="nm"></div><div class="st ${c.verified ? 'ok' : 'no'}">` +
+      `${c.verified ? 'VERIFIED' : 'UNVERIFIED'}</div>`;
+    meta.querySelector('.nm').textContent = c.name;
+
+    row.append(sw, meta);
+    row.addEventListener('click', () => openConversation(c.id));
+    list.appendChild(row);
+  }
+}
+
+function renderRequests() {
+  const box = $('requests');
+  const pending = Object.entries(state.requests);
+  box.hidden = pending.length === 0;
+  box.innerHTML = '';
+  if (!pending.length) return;
+
+  const hdr = document.createElement('div');
+  hdr.className = 'hdr label';
+  hdr.textContent = pending.length === 1 ? 'Message request' : 'Message requests';
+  box.appendChild(hdr);
+
+  for (const [hexKey, req] of pending) {
+    const el = document.createElement('div');
+    el.className = 'request';
+
+    const top = document.createElement('div');
+    top.className = 'top';
+    const sw = document.createElement('div');
+    sw.className = 'strip sm';
+    strip(sw, hexKey);
+    const frag = document.createElement('div');
+    frag.className = 'idfrag';
+    // Enough of the key to compare against what they told you, without
+    // pretending eight characters is verification.
+    frag.textContent = hexKey.slice(0, 8) + '…' + hexKey.slice(-4);
+    top.append(sw, frag);
+
+    const preview = document.createElement('p');
+    preview.className = 'preview';
+    preview.textContent = req.preview;
+
+    const acts = document.createElement('div');
+    acts.className = 'acts';
+    const accept = document.createElement('button');
+    accept.textContent = 'Accept';
+    accept.addEventListener('click', () => acceptRequest(hexKey));
+    const ignore = document.createElement('button');
+    ignore.className = 'ghost';
+    ignore.textContent = 'Ignore';
+    ignore.addEventListener('click', () => {
+      // Drop the request and everything held from them. Not a block — they can
+      // write again. A real block list is still to build.
+      delete state.requests[hexKey];
+      delete state.orphans[hexKey];
+      renderRequests();
+    });
+    acts.append(accept, ignore);
+
+    el.append(top, preview, acts);
+    box.appendChild(el);
+  }
+}
+
+// Which request the Add contact sheet is currently resolving, if any.
+let acceptingKey = null;
+
+function acceptRequest(hexKey) {
+  const req = state.requests[hexKey];
+  if (!req) return;
+  // window.prompt() is not implemented in Tauri's webview — it returns null
+  // and the flow dies silently. Use the sheet we already have.
+  acceptingKey = hexKey;
+  $('add-id').value = req.id;
+  $('add-name').value = '';
+  $('sheet-add-title').textContent = 'Accept request';
+  openSheet('sheet-add');
+  $('add-name').focus();
+}
+
+// Move any held messages into the right thread once their sender is added.
+function claimOrphans() {
+  for (const [hexKey, msgs] of Object.entries(state.orphans)) {
+    const match = state.contacts.find((c) => c.id.startsWith(hexKey));
+    if (!match) continue;
+    (state.threads[match.id] ||= []).unshift(...msgs);
+    delete state.orphans[hexKey];
+  }
+}
+
+function openConversation(id) {
+  const c = state.contacts.find((x) => x.id === id);
+  if (!c) return;
+  state.active = id;
+  $('conv-name').textContent = c.name;
+  $('conv-state').textContent = c.verified ? 'VERIFIED' : 'UNVERIFIED';
+  $('conv-state').className = 'st ' + (c.verified ? 'ok' : 'no');
+  $('btn-verify').hidden = false;
+  $('input').disabled = false;
+  $('btn-send').disabled = false;
+  $('main').classList.add('viewing');
+  refreshContacts();
+  renderThread();
+}
+
+$('btn-back').addEventListener('click', () => $('main').classList.remove('viewing'));
+
+// ---- thread -------------------------------------------------------------
+function renderThread() {
+  const box = $('thread');
+  const msgs = state.threads[state.active] || [];
+  box.innerHTML = '';
+
+  if (!msgs.length) {
+    box.innerHTML = '<div class="empty"><div class="label">No messages</div>' +
+      '<p style="margin:0">Say something.</p></div>';
+    return;
+  }
+
+  for (const m of msgs) {
+    const el = document.createElement('div');
+    el.className = 'msg' + (m.mine ? ' mine' : '');
+    const body = document.createElement('div');
+    body.className = 'body';
+    body.textContent = m.text;
+    const time = document.createElement('div');
+    time.className = 'time';
+    time.textContent = m.pending ? 'SENDING…' : clock(m.at);
+    el.append(body, time);
+    box.appendChild(el);
+  }
+  box.scrollTop = box.scrollHeight;
+}
+
+function record(contactId, msg) {
+  if (msg.localId && state.confirmed.has(msg.localId)) {
+    msg.pending = false;
+    state.confirmed.delete(msg.localId);
+  }
+  (state.threads[contactId] ||= []).push(msg);
+  if (contactId === state.active) renderThread();
+}
+
+async function send() {
+  const text = $('input').value.trim();
+  if (!text || !state.active) return;
+  $('input').value = '';
+  try {
+    // Show it immediately, but marked pending. `send_message` only queues the
+    // command — it returns before encryption happens, so an Ok here does not
+    // mean the message left the device.
+    const localId = await invoke('send_message', { to: state.active, text });
+    record(state.active, { mine: true, text, at: Date.now() / 1000, localId, pending: true });
+  } catch (e) {
+    toast(String(e));
+  }
+}
+
+function confirmSent(localId) {
+  for (const msgs of Object.values(state.threads)) {
+    const m = msgs.find((x) => x.localId === localId);
+    if (m) { m.pending = false; renderThread(); return; }
+  }
+  // Arrived before the message was recorded — hold it for `record` to apply.
+  state.confirmed.add(localId);
+}
+
+$('btn-send').addEventListener('click', send);
+$('input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+
+// ---- sheets -------------------------------------------------------------
+const openSheet = (id) => $(id).classList.add('on');
+document.querySelectorAll('[data-close]').forEach((b) =>
+  b.addEventListener('click', () => {
+    const sheet = b.closest('.sheet');
+    if (sheet.id === 'sheet-add') { closeAddSheet(); } else { sheet.classList.remove('on'); }
+  }));
+document.querySelectorAll('.sheet').forEach((s) =>
+  s.addEventListener('click', (e) => { if (e.target === s) s.classList.remove('on'); }));
+
+$('me-strip').addEventListener('click', () => openSheet('sheet-me'));
+$('me-strip').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSheet('sheet-me'); }
+});
+$('btn-add').addEventListener('click', () => openSheet('sheet-add'));
+
+$('btn-copy').addEventListener('click', async () => {
+  await navigator.clipboard.writeText(state.me.id);
+  toast('ID copied.');
+});
+
+$('btn-add-go').addEventListener('click', async () => {
+  const id = $('add-id').value.trim();
+  const name = $('add-name').value.trim();
+  if (!id) return toast('Paste their ID.');
+  try {
+    await invoke('add_contact', { id, name });
+    if (acceptingKey) { delete state.requests[acceptingKey]; }
+    closeAddSheet();
+    await refreshContacts();
+    const added = state.contacts.find((c) => c.id === id.replace(/[^0-9a-fA-F]/g, '').toUpperCase());
+    if (added) openConversation(added.id);
+    toast('Contact added.');
+  } catch (e) {
+    toast(String(e));
+  }
+});
+
+function closeAddSheet() {
+  acceptingKey = null;
+  $('add-id').value = '';
+  $('add-name').value = '';
+  $('sheet-add-title').textContent = 'Add contact';
+  $('sheet-add').classList.remove('on');
+}
+
+$('btn-verify').addEventListener('click', async () => {
+  const c = state.contacts.find((x) => x.id === state.active);
+  if (!c) return;
+  $('v-name').textContent = c.name;
+  try {
+    $('v-digits').textContent = await invoke('get_safety_number', { contactId: c.id });
+    openSheet('sheet-verify');
+  } catch (e) {
+    toast(String(e));
+  }
+});
+
+$('btn-verified').addEventListener('click', async () => {
+  await invoke('mark_verified', { contactId: state.active, verified: true });
+  $('sheet-verify').classList.remove('on');
+  await refreshContacts();
+  openConversation(state.active);
+  toast('Marked as verified.');
+});
+
+// ---- core events --------------------------------------------------------
+listen('veil', ({ payload }) => {
+  console.log('[veil]', payload.event, payload);
+  switch (payload.event) {
+    case 'message_sent':
+      confirmSent(payload.local_id);
+      break;
+    case 'message_received': {
+      // payload.from is the sender's public key in hex; a contact ID is that
+      // key plus nospam and checksum, so prefix matching is correct.
+      const match = state.contacts.find((c) => c.id.startsWith(payload.from));
+      const msg = { mine: false, text: payload.text, at: payload.received_at };
+
+      if (!match) {
+        // Someone messaged us before we added them. The message decrypted, so
+        // it is real — hold it and raise a request rather than dropping it.
+        (state.orphans[payload.from] ||= []).push(msg);
+
+        if (payload.from_id) {
+          state.requests[payload.from] = {
+            id: payload.from_id,
+            preview: payload.text,
+            at: payload.received_at,
+          };
+          renderRequests();
+        } else {
+          // No ID we can verify, so there is nothing safe to offer adding.
+          toast('Message from an unidentified sender.');
+        }
+        break;
+      }
+
+      record(match.id, msg);
+      if (payload.new_session) {
+        // A reinstall and an interception look identical from here. Only the
+        // user can tell them apart, so never hide this.
+        toast('This contact has a new key. Verify them again before trusting it.', true);
+      }
+      break;
+    }
+    case 'session_established':
+      toast('Ready to message.');
+      break;
+    case 'disconnected':
+      $('conv-state').textContent = `OFFLINE — RETRYING IN ${payload.retry_in_secs}S`;
+      break;
+    case 'connected':
+      if (state.active) openConversation(state.active);
+      break;
+    case 'error':
+      toast(payload.detail, /don't match|didn't look up/i.test(payload.detail));
+      break;
+  }
+});
+
+initGate();
+</script>
+</body>
+</html>

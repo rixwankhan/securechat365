@@ -1,0 +1,27 @@
+# Replace with your domain. Point its A record at this server first, or the
+# certificate request will fail.
+relay.securechat365.com {
+	# 127.0.0.1, not a container name: both services share the host network
+	# namespace, so container DNS doesn't apply.
+	reverse_proxy 127.0.0.1:8080
+
+	# While debugging certificate issuance, uncomment this to use the staging
+	# CA. Staging certificates aren't trusted (curl needs -k) but it has far
+	# looser rate limits than production, which caps failed validations at
+	# 5 per hostname per hour.
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+
+	# Caddy's default access log records client IP and request time for every
+	# connection — a permanent record of who used the service and when.
+	# Discard it. If you need debugging logs, turn them on deliberately and
+	# for a fixed window.
+	log {
+		output discard
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+}

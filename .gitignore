@@ -1,0 +1,10 @@
+target/
+node_modules/
+dist/
+*.rs.bk
+.env
+*.vault
+.DS_Store
+
+# Generated at build time, not source
+app/src-tauri/gen/schemas/

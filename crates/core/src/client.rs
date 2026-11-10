@@ -161,6 +161,14 @@ impl RelayClient {
     /// Runs until `Command::Shutdown`. Reconnects on its own; callers should
     /// never restart it in a loop or the backoff becomes meaningless.
     pub async fn run(&self, mut commands: mpsc::UnboundedReceiver<Command>) {
+        // rustls has no crypto backend until one is installed, and the first
+        // TLS handshake panics without it. That panic kills this task, the
+        // command channel's receiver is dropped, and the UI reports
+        // "channel closed" with no hint of the cause. Desktop uses native-tls
+        // and never reaches this.
+        #[cfg(any(target_os = "android", target_os = "ios"))]
+        let _ = rustls::crypto::ring::default_provider().install_default();
+
         let mut backoff = BACKOFF_START;
 
         loop {

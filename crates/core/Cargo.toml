@@ -17,4 +17,19 @@ argon2 = "0.5"
 sha2 = "0.10"
 zeroize = { version = "1", features = ["zeroize_derive"] }
 futures-util = "0.3"
+
+# TLS backend differs by platform.
+#
+# Desktop: native-tls, i.e. the OS's own TLS stack and trust store.
+#
+# Mobile: rustls with the ring backend. native-tls means OpenSSL on Android,
+# which has to be cross-compiled for four CPU architectures. rustls 0.23 also
+# ships with NO crypto backend unless one is chosen, and panics at the first
+# TLS connection without one — so ring is named explicitly here and installed
+# in client.rs.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }

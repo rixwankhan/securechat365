@@ -1,0 +1,128 @@
+name: Build Android
+
+# Signed APK for direct download from the website.
+# Play Store distribution needs an .aab instead; see the comment at the end.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Everything that would otherwise produce a broken-but-green build.
+      # An unset variable or secret is an empty string, never "missing",
+      # so check emptiness explicitly before spending 20 minutes compiling.
+      - name: Check required configuration
+        env:
+          RELAY_URL: ${{ vars.RELAY_URL }}
+          KS: ${{ secrets.ANDROID_KEYSTORE }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          missing=0
+          for v in RELAY_URL KS KS_PASS KS_ALIAS; do
+            if [ -z "${!v}" ]; then echo "::error::$v is not set"; missing=1; fi
+          done
+          [ "$missing" = 0 ] || exit 1
+          echo "Building against $RELAY_URL"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Point Tauri at the runner's NDK
+        run: echo "NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          key: android
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: app
+        run: npm ci
+
+      # gen/android is not committed, so generate it fresh each run. This also
+      # guarantees it always matches the identifier in tauri.conf.json.
+      - name: Generate Android project
+        working-directory: app
+        run: npm run tauri android init -- --ci
+
+      - name: Build APK
+        working-directory: app
+        env:
+          RELAY_URL: ${{ vars.RELAY_URL }}
+        run: npm run tauri android build -- --apk
+
+      - name: Locate APK
+        id: apk
+        run: |
+          apk=$(find app/src-tauri/gen/android -name '*release-unsigned.apk' | head -1)
+          [ -n "$apk" ] || { echo "::error::no unsigned release APK produced"; exit 1; }
+          echo "path=$apk" >> "$GITHUB_OUTPUT"
+          echo "version=$(node -p "require('./app/src-tauri/tauri.conf.json').version")" >> "$GITHUB_OUTPUT"
+          echo "Found $apk"
+
+      # The check that actually matters: the URL in the shipped binary, not the
+      # variable we intended to pass. Three releases shipped pointing at
+      # localhost while every earlier check passed.
+      - name: Verify relay URL was compiled in
+        env:
+          RELAY_URL: ${{ vars.RELAY_URL }}
+        run: |
+          mkdir -p apkcheck
+          unzip -o -q "${{ steps.apk.outputs.path }}" 'lib/*' -d apkcheck
+          if grep -rqaF "$RELAY_URL" apkcheck/lib; then
+            echo "OK: $RELAY_URL is in the native library"
+          else
+            echo "::error::RELAY_URL is not in the APK. It will connect to localhost."
+            exit 1
+          fi
+
+      - name: Sign APK
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          echo "$KS" | base64 -d > release.jks
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          OUT="securechat365_${{ steps.apk.outputs.version }}_android.apk"
+
+          "$BT/zipalign" -p -f 4 "${{ steps.apk.outputs.path }}" aligned.apk
+          "$BT/apksigner" sign \
+            --ks release.jks --ks-pass env:KS_PASS \
+            --ks-key-alias "$KS_ALIAS" --key-pass env:KS_PASS \
+            --out "$OUT" aligned.apk
+          "$BT/apksigner" verify --print-certs "$OUT"
+
+          rm -f release.jks aligned.apk
+          sha256sum "$OUT"
+          echo "OUT=$OUT" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: securechat365-android
+          path: ${{ env.OUT }}
+          if-no-files-found: error
+
+# Play Store: replace `--apk` with `--aab`, and sign the .aab with the same
+# keystore using jarsigner instead of apksigner. Google re-signs it with an
+# app signing key they hold; your keystore becomes the "upload key".

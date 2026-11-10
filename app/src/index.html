@@ -148,7 +148,12 @@
   .request .acts button { flex: 1; padding: 6px 10px; font-size: 13px; }
   .request .idfrag { font-family: var(--mono); font-size: 11px; color: var(--dim); }
 
-  .aside-foot { padding: 14px var(--pad); border-top: 1px solid var(--rule); }
+  .aside-foot {
+    padding: 14px var(--pad);
+    /* Clear Android's gesture/button bar and the iPhone home indicator. */
+    padding-bottom: max(14px, calc(env(safe-area-inset-bottom) + 8px));
+    border-top: 1px solid var(--rule);
+  }
   .aside-foot button { width: 100%; }
 
   main { flex: 1; display: flex; flex-direction: column; min-width: 0; }

@@ -1,0 +1,9 @@
+{
+  "identifier": "mobile",
+  "description": "Camera QR scanning for adding contacts (Android and iOS only)",
+  "windows": ["main"],
+  "platforms": ["android", "iOS"],
+  "permissions": [
+    "barcode-scanner:default"
+  ]
+}

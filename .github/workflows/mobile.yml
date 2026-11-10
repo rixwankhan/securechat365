@@ -96,6 +96,19 @@ jobs:
             exit 1
           fi
 
+      # QR scanning needs CAMERA in the merged manifest (declared by the
+      # barcode-scanner plugin). Without it the permission request is denied
+      # silently and Scan only ever reports "permission denied".
+      - name: Verify camera permission is in the manifest
+        run: |
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          if "$BT/aapt" dump permissions "${{ steps.apk.outputs.path }}" | grep -q "android.permission.CAMERA"; then
+            echo "OK: CAMERA permission declared"
+          else
+            echo "::error::android.permission.CAMERA missing from the APK manifest; QR scanning cannot work."
+            exit 1
+          fi
+
       - name: Sign APK
         env:
           KS: ${{ secrets.ANDROID_KEYSTORE }}

@@ -25,3 +25,8 @@ securechat365-core = { path = "../../crates/core" }
 qrcode = "0.14"
 rand = "0.8"
 tokio = { version = "1", features = ["full"] }
+
+# Camera QR scanning. The plugin is mobile-only (no desktop implementation),
+# so it is a target-specific dependency and registered under #[cfg(mobile)].
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+tauri-plugin-barcode-scanner = "2"

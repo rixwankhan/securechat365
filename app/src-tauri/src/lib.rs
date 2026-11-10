@@ -398,7 +398,13 @@ fn qr_svg(payload: &str) -> Result<String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+
+    // QR scanning for "Add contact". Mobile only; desktop keeps paste.
+    #[cfg(mobile)]
+    let builder = builder.plugin(tauri_plugin_barcode_scanner::init());
+
+    builder
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             has_identity,

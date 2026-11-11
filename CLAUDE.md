@@ -241,9 +241,14 @@ Notes:
 - Podman's port publishing silently failed on this host (empty
   `NETAVARK-HOSTPORT-DNAT`), so both services use `network_mode: host`. The
   relay binds `127.0.0.1:8080` via `SECURECHAT_BIND`; only Caddy is public.
-- Podman has no daemon: containers do **not** restart after a reboot unless
-  `podman-restart.service` is enabled. Check `uptime` first when the relay is
-  unreachable.
+- Podman has no daemon: containers come back after a reboot only if
+  `podman-restart.service` is enabled **and** their policy is
+  `restart: always`. The service runs
+  `podman start --all --filter restart-policy=always` and silently skips
+  `unless-stopped` — that kept the relay down from 2026-10-18 to 2026-11-10
+  with the service enabled and reporting success. When the relay is
+  unreachable, check `uptime` first, then
+  `podman inspect -f '{{.HostConfig.RestartPolicy.Name}}' securechat365_relay_1`.
 - The Dockerfile trims `app/src-tauri` out of the workspace members, since the
   desktop app isn't in the image.
 - Caddy access logs are discarded on purpose (they'd record user IPs).

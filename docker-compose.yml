@@ -7,11 +7,16 @@
 #
 # The trade-off is that container ports are no longer isolated, which is why the
 # relay binds loopback only and is reachable solely through Caddy.
+#
+# restart: always, not unless-stopped. Podman has no daemon; after a reboot
+# podman-restart.service runs `podman start --all --filter restart-policy=always`
+# and skips everything else. With unless-stopped the relay stayed down for
+# three weeks after a reboot while the service reported success.
 
 services:
   relay:
     build: .
-    restart: unless-stopped
+    restart: always
     network_mode: host
     environment:
       # Loopback only. On the host network, 0.0.0.0 would expose the relay
@@ -24,7 +29,7 @@ services:
 
   caddy:
     image: docker.io/library/caddy:2-alpine
-    restart: unless-stopped
+    restart: always
     network_mode: host
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro

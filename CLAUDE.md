@@ -289,10 +289,6 @@ strings "/Applications/securechat365.app/Contents/MacOS/app" | grep -E "^wss?://
 ## Open work
 
 ### In flight
-- [ ] **Relay unreachable** — as of 2026-11-11 both Mac and Android showed
-      "Offline — retrying". Suspected server reboot without
-      `podman-restart.service`. Check `uptime`, `docker compose ps`, relay and
-      Caddy logs.
 - [ ] **Android: sidebar "Add contact" sits under the navigation bar.**
       `.aside-foot` needs `padding-bottom: max(14px, calc(env(safe-area-inset-bottom) + 8px))`
       (the composer already has this). Verify the WebView reports a non-zero

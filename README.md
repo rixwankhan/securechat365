@@ -434,6 +434,9 @@ Especially interested in: key substitution paths, session-handling edge cases,
 anything letting the relay learn more than it should, and vault or memory
 handling of key material.
 
+See [SECURITY.md](SECURITY.md) for scope, disclosure timelines and known
+limitations.
+
 ---
 
 ## What not to claim
